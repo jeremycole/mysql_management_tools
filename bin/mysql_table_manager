@@ -6,16 +6,16 @@ require 'mysql'
 require 'mysql_management/basic_interaction'
 require 'mysql_management/mysql_connection_manager'
 
-class TableMaintainer
+class TableManager
   attr_accessor :verbose, :dry_run, :debug
 
-  def initialize(logger, asker, manager)
-    @logger  = logger
-    @asker   = asker
-    @manager = manager
-    @verbose = false
-    @dry_run = false
-    @debug   = false
+  def initialize(logger, asker, connection_manager)
+    @logger               = logger
+    @asker                = asker
+    @connection_manager   = connection_manager
+    @verbose              = false
+    @dry_run              = false
+    @debug                = false
   end
 
   def log(*args)
@@ -33,8 +33,8 @@ class TableMaintainer
 
   def maintain_tables(method, modifying, pattern=//, start=nil)
     tables = []
-    @manager.hosts.each do |host|
-      @manager.list_tables(host, pattern).each do |table|
+    @connection_manager.hosts.each do |host|
+      @connection_manager.list_tables(host, pattern).each do |table|
         tables << [host, table]
       end
     end
@@ -65,11 +65,11 @@ class TableMaintainer
       end
       log "#{host}/#{table} (#{table_count} of #{tables.size}): #{method}"
       if modifying
-        size_before = @manager.table_size(host, table)
+        size_before = @connection_manager.table_size(host, table)
       end
       send(method, host, table)
       if modifying
-        size_after = @manager.table_size(host, table)
+        size_after = @connection_manager.table_size(host, table)
         log "%s/%s: ~%0.1fM rows, %0.1fG+%0.1fG -> %0.1fG+%0.1fG (%0.2f%%+%0.2f%%)" % [
           host, table,
           size_before["rows"].to_f / (1000**2),
@@ -85,11 +85,11 @@ class TableMaintainer
   end
 
   def compact_table(host, table)
-    @manager.compact_table(host, table)
+    @connection_manager.compact_table(host, table)
   end
 
   def truncate_table(host, table)
-    @manager.truncate_table(host, table)
+    @connection_manager.truncate_table(host, table)
   end
 
   def print_table_size(host, table, size)
@@ -100,11 +100,11 @@ class TableMaintainer
   end
 
   def measure_table(host, table)
-    print_table_size(host, table, @manager.table_size(host, table, false))
+    print_table_size(host, table, @connection_manager.table_size(host, table, false))
   end
 
   def exact_measure_table(host, table)
-    print_table_size(host, table, @manager.table_size(host, table, true))
+    print_table_size(host, table, @connection_manager.table_size(host, table, true))
   end
 end
 
@@ -125,7 +125,7 @@ def usage(exit_code, message = nil)
 
   print <<'END_OF_USAGE'
 
-Usage: mysql_maintain_tables
+Usage: mysql_table_manager <options> -m <mode>
 
   --help, -?
     Print this usage text.
@@ -230,24 +230,24 @@ end
 logger = BasicInteraction::Logger.new
 asker  = @options.yes ? nil : BasicInteraction::Asker.new
 
-manager = MysqlConnectionManager.new(logger, asker)
+connection_manager = MysqlConnectionManager.new(logger, asker)
 
-manager.set_options({
+connection_manager.set_options({
   :verbose => @options.verbose,
   :dry_run => @options.dry_run,
 })
 
-manager.set_default_credentials(
+connection_manager.set_default_credentials(
   @options.user,
   @options.password,
   @options.db
 )
 
 @options.hosts.each do |host|
-  manager.add_host(host)
+  connection_manager.add_host(host)
 end
 
-maintainer = TableMaintainer.new(logger, asker, manager)
+table_manager = TableManager.new(logger, asker, connection_manager)
 
 mode, modifying = case @options.mode
   when "compact"
@@ -262,5 +262,5 @@ mode, modifying = case @options.mode
     usage 1, "Unknown mode #{@options.mode}!"
 end
 
-maintainer.maintain_tables(mode, modifying,
+table_manager.maintain_tables(mode, modifying,
   @options.table_pattern, @options.table_start)
