@@ -1,0 +1,1 @@
+A collection of tools to manage MySQL and Gizzard systems, in Ruby.
