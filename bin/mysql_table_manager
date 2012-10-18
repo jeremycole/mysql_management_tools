@@ -1,0 +1,266 @@
+#!/usr/bin/env ruby
+
+require 'getoptlong'
+require 'ostruct'
+require 'mysql'
+require 'mysql_management/basic_interaction'
+require 'mysql_management/mysql_connection_manager'
+
+class TableMaintainer
+  attr_accessor :verbose, :dry_run, :debug
+
+  def initialize(logger, asker, manager)
+    @logger  = logger
+    @asker   = asker
+    @manager = manager
+    @verbose = false
+    @dry_run = false
+    @debug   = false
+  end
+
+  def log(*args)
+    @logger.log(*args) if @logger
+  end
+
+  def ask(*args)
+    @asker.ask(*args) if @asker
+  end
+
+  def ask_yesno(*args)
+    return true unless @asker
+    @asker.ask_yesno(*args)
+  end
+
+  def maintain_tables(method, modifying, pattern=//, start=nil)
+    tables = []
+    @manager.hosts.each do |host|
+      @manager.list_tables(host, pattern).each do |table|
+        tables << [host, table]
+      end
+    end
+
+    puts
+    puts "Found the following tables for #{method}:"
+    tables.each do |host, table|
+      puts "  #{host}/#{table}"
+    end
+    puts
+
+    unless ask_yesno("Apply #{method} to #{tables.size} tables above?")
+      puts "Exiting!"
+      exit
+    end
+
+    table_count = 0
+    table_start_found = false
+    tables.each do |host, table|
+      table_count += 1
+      if start and not table_start_found
+        if "#{host}/#{table}" == start
+          table_start_found = true
+        else
+          log "#{host}/#{table} (#{table_count} of #{tables.size}): (skipping)"
+          next
+        end
+      end
+      log "#{host}/#{table} (#{table_count} of #{tables.size}): #{method}"
+      if modifying
+        size_before = @manager.table_size(host, table)
+      end
+      send(method, host, table)
+      if modifying
+        size_after = @manager.table_size(host, table)
+        log "%s/%s: ~%0.1fM rows, %0.1fG+%0.1fG -> %0.1fG+%0.1fG (%0.2f%%+%0.2f%%)" % [
+          host, table,
+          size_before["rows"].to_f / (1000**2),
+          size_before["data"].to_f / (1024**3).to_f,
+          size_before["index"].to_f / (1024**3).to_f,
+          size_after["data"].to_f / (1024**3).to_f,
+          size_after["index"].to_f / (1024**3).to_f,
+          100.0 * (size_after["data"].to_f / size_before["data"].to_f),
+          100.0 * (size_after["index"].to_f / size_before["index"].to_f),
+        ]
+      end
+    end
+  end
+
+  def compact_table(host, table)
+    @manager.compact_table(host, table)
+  end
+
+  def truncate_table(host, table)
+    @manager.truncate_table(host, table)
+  end
+
+  def print_table_size(host, table, size)
+    log "%s/%s: table_size: %i, %i, %i, %i" % [
+      host, table,
+      size["rows"], size["index"], size["data"], size["total"]
+    ]
+  end
+
+  def measure_table(host, table)
+    print_table_size(host, table, @manager.table_size(host, table, false))
+  end
+
+  def exact_measure_table(host, table)
+    print_table_size(host, table, @manager.table_size(host, table, true))
+  end
+end
+
+@options = OpenStruct.new
+@options.verbose        = false
+@options.dry_run        = false
+@options.yes            = false
+@options.hosts          = []
+@options.user           = "root"
+@options.password       = ""
+@options.db             = "test"
+@options.table_pattern  = //
+@options.table_start    = nil
+@options.mode           = nil
+
+def usage(exit_code, message = nil)
+  print "Error: #{message}\n\n" unless message.nil?
+
+  print <<'END_OF_USAGE'
+
+Usage: mysql_maintain_tables
+
+  --help, -?
+    Print this usage text.
+
+  --verbose, -v
+    Print a lot of verbose output while running
+
+  --dry-run, -D
+    Don't actually modify any tables, just print what would have been done.
+
+  --yes, -y
+    Don't ask, just do it.
+
+  --host, -h <mysql host>
+  --user, -u <mysql user>
+  --password, -p <mysql password>
+  --db, -d <mysql db>
+    The MySQL host, user name, password and default database to use when
+    connecting to MySQL. The host option may be specified multiple times.
+
+  --table_pattern, -t <regex>
+    Use the supplied regular expression to filter tables to maintain.
+
+  --table_start, -s <host>/<table>
+    The name of the host and table to start maintenance on. All tables before
+    this point in the ordered list will be skipped.
+
+  --mode, -m <mode>
+    Run the supplied mode. The following modes are supported:
+
+      compact
+        Compact the table by running a no-op ALTER TABLE against it. The
+        InnoDB storage engine is assumed.
+
+      truncate
+        Truncate the table, removing all rows and recreating the table to
+        regain disk space.
+
+      measure
+        Report the table sizes in bytes, and the estimated number of rows.
+
+      exact_measure
+        Report the table sizes in bytes, and the exact number of rows.
+
+END_OF_USAGE
+
+  exit exit_code
+end
+
+getopt_options = [
+  [ "--help",             "-?",     GetoptLong::NO_ARGUMENT ],
+  [ "--verbose",          "-v",     GetoptLong::NO_ARGUMENT ],
+  [ "--dry-run",          "-D",     GetoptLong::NO_ARGUMENT ],
+  [ "--yes",              "-y",     GetoptLong::NO_ARGUMENT ],  
+  [ "--host",             "-h",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--user",             "-u",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--password",         "-p",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--db",               "-d",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--table-pattern",    "-t",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--table-start",      "-s",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--mode",             "-m",     GetoptLong::REQUIRED_ARGUMENT ],
+]
+
+getopt = GetoptLong.new(*getopt_options)
+
+getopt.each do |opt, arg|
+  case opt
+    when "--help"
+      usage 0
+    when "--verbose"
+      @options.verbose = true
+    when "--dry-run"
+      @options.dry_run = true
+      @options.verbose = true
+    when "--yes"
+      @options.yes = true
+    when "--host"
+      @options.hosts += arg.split(",")
+    when "--user"
+      @options.user = arg
+    when "--password"
+      @options.password = arg
+    when "--db"
+      @options.db = arg
+    when "--table-pattern"
+      @options.table_pattern = Regexp.compile(arg)
+    when "--table-start"
+      @options.table_start = arg
+    when "--mode"
+      @options.mode = arg
+  end
+end
+
+if @options.hosts.empty?
+  @options.hosts << "localhost"
+end
+
+if @options.mode.nil?
+  usage 1, "A mode must be provided with --mode or -m"
+end
+
+logger = BasicInteraction::Logger.new
+asker  = @options.yes ? nil : BasicInteraction::Asker.new
+
+manager = MysqlConnectionManager.new(logger, asker)
+
+manager.set_options({
+  :verbose => @options.verbose,
+  :dry_run => @options.dry_run,
+})
+
+manager.set_default_credentials(
+  @options.user,
+  @options.password,
+  @options.db
+)
+
+@options.hosts.each do |host|
+  manager.add_host(host)
+end
+
+maintainer = TableMaintainer.new(logger, asker, manager)
+
+mode, modifying = case @options.mode
+  when "compact"
+    [:compact_table, true]
+  when "truncate"
+    [:truncate_table, true]
+  when "measure"
+    [:measure_table, false]
+  when "exact_measure"
+    [:exact_measure_table, false]
+  else
+    usage 1, "Unknown mode #{@options.mode}!"
+end
+
+maintainer.maintain_tables(mode, modifying,
+  @options.table_pattern, @options.table_start)
