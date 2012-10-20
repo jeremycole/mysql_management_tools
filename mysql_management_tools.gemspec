@@ -10,6 +10,13 @@ Gem::Specification.new do |s|
   s.files = [
     'lib/mysql_management/basic_interaction.rb',
     'lib/mysql_management/mysql_connection_manager.rb',
+    'lib/mysql_table_manager/abstract_task.rb',
+    'lib/mysql_table_manager/table_manager.rb',
+    'lib/mysql_table_manager/task/compact.rb',
+    'lib/mysql_table_manager/task/exact_measure.rb',
+    'lib/mysql_table_manager/task/measure.rb',
+    'lib/mysql_table_manager/task/truncate.rb',
+    'lib/mysql_table_manager.rb',
   ]
   s.executables = [
     'mysql_table_manager',
