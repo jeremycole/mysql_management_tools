@@ -124,6 +124,21 @@ class MysqlConnectionManager
     tables.select { |name| name =~ pattern }.sort
   end
 
+  def list_columns(host, table)
+    column_list_query = 
+      "SELECT column_name FROM information_schema.columns " +
+      "WHERE table_schema = database() AND table_name = '#{table}'"
+
+    if result = query(host, column_list_query)
+      columns = []
+      result.each_hash do |row|
+        columns << row['column_name']
+      end
+
+      columns
+    end
+  end
+
   def table_status(host, table)
     table_status_query = "SHOW TABLE STATUS LIKE '#{table.gsub('_', '\_')}'"
 

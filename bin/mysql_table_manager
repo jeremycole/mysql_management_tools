@@ -5,108 +5,7 @@ require 'ostruct'
 require 'mysql'
 require 'mysql_management/basic_interaction'
 require 'mysql_management/mysql_connection_manager'
-
-class TableManager
-  attr_accessor :verbose, :dry_run, :debug
-
-  def initialize(logger, asker, connection_manager)
-    @logger               = logger
-    @asker                = asker
-    @connection_manager   = connection_manager
-    @verbose              = false
-    @dry_run              = false
-    @debug                = false
-  end
-
-  def log(*args)
-    @logger.log(*args) if @logger
-  end
-
-  def ask(*args)
-    @asker.ask(*args) if @asker
-  end
-
-  def ask_yesno(*args)
-    return true unless @asker
-    @asker.ask_yesno(*args)
-  end
-
-  def maintain_tables(method, modifying, pattern=//, start=nil)
-    tables = []
-    @connection_manager.hosts.each do |host|
-      @connection_manager.list_tables(host, pattern).each do |table|
-        tables << [host, table]
-      end
-    end
-
-    puts
-    puts "Found the following tables for #{method}:"
-    tables.each do |host, table|
-      puts "  #{host}/#{table}"
-    end
-    puts
-
-    unless ask_yesno("Apply #{method} to #{tables.size} tables above?")
-      puts "Exiting!"
-      exit
-    end
-
-    table_count = 0
-    table_start_found = false
-    tables.each do |host, table|
-      table_count += 1
-      if start and not table_start_found
-        if "#{host}/#{table}" == start
-          table_start_found = true
-        else
-          log "#{host}/#{table} (#{table_count} of #{tables.size}): (skipping)"
-          next
-        end
-      end
-      log "#{host}/#{table} (#{table_count} of #{tables.size}): #{method}"
-      if modifying
-        size_before = @connection_manager.table_size(host, table)
-      end
-      send(method, host, table)
-      if modifying
-        size_after = @connection_manager.table_size(host, table)
-        log "%s/%s: ~%0.1fM rows, %0.1fG+%0.1fG -> %0.1fG+%0.1fG (%0.2f%%+%0.2f%%)" % [
-          host, table,
-          size_before["rows"].to_f / (1000**2),
-          size_before["data"].to_f / (1024**3).to_f,
-          size_before["index"].to_f / (1024**3).to_f,
-          size_after["data"].to_f / (1024**3).to_f,
-          size_after["index"].to_f / (1024**3).to_f,
-          100.0 * (size_after["data"].to_f / size_before["data"].to_f),
-          100.0 * (size_after["index"].to_f / size_before["index"].to_f),
-        ]
-      end
-    end
-  end
-
-  def compact_table(host, table)
-    @connection_manager.compact_table(host, table)
-  end
-
-  def truncate_table(host, table)
-    @connection_manager.truncate_table(host, table)
-  end
-
-  def print_table_size(host, table, size)
-    log "%s/%s: table_size: %i, %i, %i, %i" % [
-      host, table,
-      size["rows"], size["index"], size["data"], size["total"]
-    ]
-  end
-
-  def measure_table(host, table)
-    print_table_size(host, table, @connection_manager.table_size(host, table, false))
-  end
-
-  def exact_measure_table(host, table)
-    print_table_size(host, table, @connection_manager.table_size(host, table, true))
-  end
-end
+require 'mysql_table_manager'
 
 @options = OpenStruct.new
 @options.verbose        = false
@@ -118,14 +17,15 @@ end
 @options.db             = "test"
 @options.table_pattern  = //
 @options.table_start    = nil
-@options.mode           = nil
+@options.task           = nil
+@options.direction      = :forward
 
 def usage(exit_code, message = nil)
   print "Error: #{message}\n\n" unless message.nil?
 
   print <<'END_OF_USAGE'
 
-Usage: mysql_table_manager <options> -m <mode>
+Usage: mysql_table_manager <options> -k <task>
 
   --help, -?
     Print this usage text.
@@ -153,24 +53,21 @@ Usage: mysql_table_manager <options> -m <mode>
     The name of the host and table to start maintenance on. All tables before
     this point in the ordered list will be skipped.
 
-  --mode, -m <mode>
-    Run the supplied mode. The following modes are supported:
+  --unapply, -U
+    Unapply the task instead of applying it. Not all tasks may support
+    unapply, and not all operations are even un-applyable.
 
-      compact
-        Compact the table by running a no-op ALTER TABLE against it. The
-        InnoDB storage engine is assumed.
-
-      truncate
-        Truncate the table, removing all rows and recreating the table to
-        regain disk space.
-
-      measure
-        Report the table sizes in bytes, and the estimated number of rows.
-
-      exact_measure
-        Report the table sizes in bytes, and the exact number of rows.
+  --task, -k <task>
+    Run the supplied task. The following task are supported:
 
 END_OF_USAGE
+
+  MysqlTableManager::TableManager.each_supported_task do |name, description|
+    puts "#{name}"
+    puts "  #{description}".gsub("\n", "\n  ")
+    puts
+  end
+  puts
 
   exit exit_code
 end
@@ -186,7 +83,8 @@ getopt_options = [
   [ "--db",               "-d",     GetoptLong::REQUIRED_ARGUMENT ],
   [ "--table-pattern",    "-t",     GetoptLong::REQUIRED_ARGUMENT ],
   [ "--table-start",      "-s",     GetoptLong::REQUIRED_ARGUMENT ],
-  [ "--mode",             "-m",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--task",             "-k",     GetoptLong::REQUIRED_ARGUMENT ],
+  [ "--unapply",          "-U",     GetoptLong::NO_ARGUMENT ],
 ]
 
 getopt = GetoptLong.new(*getopt_options)
@@ -214,8 +112,10 @@ getopt.each do |opt, arg|
       @options.table_pattern = Regexp.compile(arg)
     when "--table-start"
       @options.table_start = arg
-    when "--mode"
-      @options.mode = arg
+    when "--task"
+      @options.task = arg
+    when "--unapply"
+      @options.direction = :backward
   end
 end
 
@@ -223,8 +123,8 @@ if @options.hosts.empty?
   @options.hosts << "localhost"
 end
 
-if @options.mode.nil?
-  usage 1, "A mode must be provided with --mode or -m"
+if @options.task.nil?
+  usage 1, "A task name must be provided with --task or -k"
 end
 
 logger = BasicInteraction::Logger.new
@@ -247,20 +147,9 @@ connection_manager.set_default_credentials(
   connection_manager.add_host(host)
 end
 
-table_manager = TableManager.new(logger, asker, connection_manager)
+table_manager = MysqlTableManager::TableManager.new(logger, asker, connection_manager)
 
-mode, modifying = case @options.mode
-  when "compact"
-    [:compact_table, true]
-  when "truncate"
-    [:truncate_table, true]
-  when "measure"
-    [:measure_table, false]
-  when "exact_measure"
-    [:exact_measure_table, false]
-  else
-    usage 1, "Unknown mode #{@options.mode}!"
-end
-
-table_manager.maintain_tables(mode, modifying,
-  @options.table_pattern, @options.table_start)
+table_manager.maintain_tables(@options.task,
+  @options.direction,
+  @options.table_pattern,
+  @options.table_start)
