@@ -139,6 +139,16 @@ class MysqlConnectionManager
     end
   end
 
+  def show_create_table(host, table)
+    show_query = "SHOW CREATE TABLE `#{table}`"
+
+    if result = query(host, show_query)
+      if create_table = result.fetch_hash
+        create_table["Create Table"]
+      end
+    end
+  end
+
   def table_status(host, table)
     table_status_query = "SHOW TABLE STATUS LIKE '#{table.gsub('_', '\_')}'"
 
