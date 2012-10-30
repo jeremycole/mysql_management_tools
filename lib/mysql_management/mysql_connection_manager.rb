@@ -192,6 +192,14 @@ class MysqlConnectionManager
     modifying_query host, "TRUNCATE TABLE `#{name}`"
   end
 
+  def analyze_table(host, name)
+    modifying_query host, "ANALYZE TABLE `#{name}`"
+  end
+
+  def optimize_table(host, name)
+    modifying_query host, "OPTIMIZE TABLE `#{name}`"
+  end
+
   def compact_table(host, name)
     # This should perhaps check the table's storage engine and use that here
     # but since we only care about InnoDB for the moment, this will suffice.
