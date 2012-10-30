@@ -26,7 +26,7 @@ module MysqlTableManager
     end
 
     def self.each_supported_task
-      MysqlTableManager::Task.constants.each do |task_name|
+      MysqlTableManager::Task.constants.sort.each do |task_name|
         task_class = MysqlTableManager::Task.const_get(task_name)
         yield task_name, task_class.description
       end
