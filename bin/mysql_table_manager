@@ -36,6 +36,10 @@ Usage: mysql_table_manager <options> -k <task>
   --dry-run, -D
     Don't actually modify any tables, just print what would have been done.
 
+  --local-only, -L
+    Use SET SESSION sql_log_bin to ensure that changes do not get logged in
+    the binary log, and thus do not propagate to any connected slaves.
+
   --yes, -y
     Don't ask, just do it.
 
@@ -81,6 +85,7 @@ getopt_options = [
   [ "--help",             "-?",     GetoptLong::NO_ARGUMENT ],
   [ "--verbose",          "-v",     GetoptLong::NO_ARGUMENT ],
   [ "--dry-run",          "-D",     GetoptLong::NO_ARGUMENT ],
+  [ "--local-only",       "-L",     GetoptLong::NO_ARGUMENT ],
   [ "--yes",              "-y",     GetoptLong::NO_ARGUMENT ],  
   [ "--host",             "-h",     GetoptLong::REQUIRED_ARGUMENT ],
   [ "--user",             "-u",     GetoptLong::REQUIRED_ARGUMENT ],
@@ -104,6 +109,8 @@ getopt.each do |opt, arg|
     when "--dry-run"
       @options.dry_run = true
       @options.verbose = true
+    when "--local-only"
+      @options.local_only = true
     when "--yes"
       @options.yes = true
     when "--host"
@@ -141,8 +148,9 @@ asker  = @options.yes ? nil : BasicInteraction::Asker.new
 connection_manager = MysqlConnectionManager.new(logger, asker)
 
 connection_manager.set_options({
-  :verbose => @options.verbose,
-  :dry_run => @options.dry_run,
+  :verbose      => @options.verbose,
+  :dry_run      => @options.dry_run,
+  :local_only   => @options.local_only,
 })
 
 connection_manager.set_default_credentials(

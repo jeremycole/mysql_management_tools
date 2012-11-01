@@ -7,9 +7,10 @@ class MysqlConnectionManager
     @logger = logger
     @asker  = asker
     @options = {
-      :verbose  => true,
-      :confirm  => false,
-      :dry_run  => false,
+      :verbose    => true,
+      :confirm    => false,
+      :dry_run    => false,
+      :local_only => false,
     }
     @hosts = {}
     @connection_cache = {}
@@ -75,7 +76,16 @@ class MysqlConnectionManager
       @hosts[host][:db]
     )
 
+    if @options[:local_only]
+      query_without_retry(host, "SET SESSION sql_log_bin = 0")
+    end
+
     @connection_cache.size
+  end
+
+  def query_without_retry(host, query)
+    log "#{host} -> #{query}"
+    @connection_cache[host].query(query)
   end
 
   def yield_with_retry(host, retries = 5)
@@ -96,10 +106,9 @@ class MysqlConnectionManager
   end
 
   def query(host, query)
-    log "#{host} -> #{query}"
   
     yield_with_retry(host) do
-      @connection_cache[host].query(query)
+      query_without_retry(host, query)
     end
   end
 
