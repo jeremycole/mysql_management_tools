@@ -40,8 +40,8 @@ module MysqlTableManager
       task = task_class(task_name).new(self)
 
       tables = []
-      @connection_manager.hosts.each do |host|
-        @connection_manager.list_tables(host, pattern).each do |table|
+      @connection_manager.hosts.sort.each do |host|
+        @connection_manager.list_tables(host, pattern).sort.each do |table|
           case
           when direction == :forward && task.applies?(host, table)
             tables << [host, table]
