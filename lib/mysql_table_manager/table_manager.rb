@@ -51,6 +51,18 @@ module MysqlTableManager
         end
       end
 
+      if start
+        table_start_found = false
+        until table_start_found
+          host, table = tables.first
+          if "#{host}/#{table}" == start
+            table_start_found = true
+          else
+            tables.shift
+          end
+        end
+      end
+
       if tables.empty?
         puts
         puts "No tables found for #{task_name}!"
@@ -70,17 +82,8 @@ module MysqlTableManager
       end
 
       table_count = 0
-      table_start_found = false
       tables.each do |host, table|
         table_count += 1
-        if start and not table_start_found
-          if "#{host}/#{table}" == start
-            table_start_found = true
-          else
-            log "#{host}/#{table} (#{table_count} of #{tables.size}): (skipping)"
-            next
-          end
-        end
 
         log "#{host}/#{table} (#{table_count} of #{tables.size}): #{task_name}"
         if task.modifies?
