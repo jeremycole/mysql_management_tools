@@ -81,6 +81,8 @@ module MysqlTableManager
         exit
       end
 
+      task.start
+
       table_count = 0
       tables.each do |host, table|
         table_count += 1
@@ -111,6 +113,8 @@ module MysqlTableManager
           ]
         end
       end
+
+      task.finish
     end
   end
 end

@@ -28,6 +28,12 @@ module MysqlTableManager
       self.class.modifies?
     end
 
+    def start
+    end
+
+    def finish
+    end
+
     def applies?(host, table)
       true
     end
