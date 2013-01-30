@@ -69,12 +69,16 @@ class MysqlConnectionManager
 
     log "#{host} -> Connecting to MySQL"
 
-    @connection_cache[host] = Mysql.new(
-      host,
-      @hosts[host][:user],
-      @hosts[host][:password],
-      @hosts[host][:db]
-    )
+    begin
+      @connection_cache[host] = Mysql.new(
+        host,
+        @hosts[host][:user],
+        @hosts[host][:password],
+        @hosts[host][:db]
+      )
+    rescue Mysql::Error
+      raise $!, "Unable to connect to #{host}.  #{$!}"
+    end
 
     if @options[:local_only]
       query_without_retry(host, "SET SESSION sql_log_bin = 0")

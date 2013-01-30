@@ -4,9 +4,9 @@ Gem::Specification.new do |s|
   s.date        = Time.now.strftime("%Y-%m-%d")
   s.summary     = 'MySQL Management Tools'
   s.description = 'A library and tools for managing MySQL servers'
-  s.authors     = [ 'Jeremy Cole' ]
-  s.email       = 'jeremycole@twitter.com'
-  s.homepage    = 'http://twitter.com/jeremycole'
+  s.authors     = [ 'Jeremy Cole', 'Will Gunty' ]
+  s.email       = ['jeremycole@twitter.com', 'wg@twitter.com']
+  s.homepage    = 'https://github.com/jeremycole/mysql_management_tools'
   s.files = [
     'lib/mysql_management/basic_interaction.rb',
     'lib/mysql_management/mysql_connection_manager.rb',
@@ -21,4 +21,5 @@ Gem::Specification.new do |s|
   s.executables = [
     'mysql_table_manager',
   ]
+  s.add_dependency('inifile', '>=2.0.2')
 end

@@ -2,6 +2,7 @@
 
 require 'getoptlong'
 require 'ostruct'
+require 'inifile'
 require 'mysql'
 require 'mysql_management/basic_interaction'
 require 'mysql_management/mysql_connection_manager'
@@ -79,6 +80,17 @@ END_OF_USAGE
   puts
 
   exit exit_code
+end
+
+if File.exists?(File.expand_path("~/.my.cnf"))
+  my_cnf = IniFile.load(File.expand_path("~/.my.cnf"))
+  section = my_cnf['client']
+  unless section['user'].nil?
+    @options.user = section['user']
+  end
+  unless section['password'].nil?
+    @options.password = section['password']
+  end
 end
 
 getopt_options = [
