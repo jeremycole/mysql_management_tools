@@ -12,6 +12,7 @@ module MysqlTableManager
     end
 
     def apply(host, table)
+      connection_manager.analyze_table(host, table)
       print_table_size(host, table, connection_manager.table_size(host, table, false))
     end
   end
