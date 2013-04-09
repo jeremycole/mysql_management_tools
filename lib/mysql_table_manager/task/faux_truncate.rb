@@ -14,9 +14,9 @@ module MysqlTableManager
     end
 
     def apply(host, table)
-      connection_manager.modifying_query(host, "CREATE TABLE #{table}_new LIKE #{table}")
-      connection_manager.modifying_query(host, "RENAME TABLE #{table} TO #{table}_old, #{table}_new TO #{table}")
-      connection_manager.drop_table(host, "#{table}_old")
+      connection_manager.modifying_query(host, "CREATE TABLE #{table}_to_drop LIKE #{table}")
+      connection_manager.swap_tables(host, table, "#{table}_to_drop")
+      connection_manager.drop_table(host, "#{table}_to_drop")
     end
   end
 end
