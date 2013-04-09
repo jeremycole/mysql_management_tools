@@ -240,7 +240,7 @@ class MysqlConnectionManager
 
   def nonblock_compact_table(host, name)
     # This will only work with Twitter's build of MySQL
-    modifying_query host, "ALTER TABLE `#{name}` NO_WAIT, LOCK=EXCLUSIVE ENGINE=InnoDB"
+    modifying_query host, "ALTER TABLE `#{name}` NO_WAIT, LOCK=EXCLUSIVE, ENGINE=InnoDB"
   end
 
   def hosts
