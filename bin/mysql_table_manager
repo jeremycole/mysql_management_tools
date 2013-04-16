@@ -60,8 +60,7 @@ Usage: mysql_table_manager <options> -k <task>
 
   --require, -r <name>
     Require the file name specified. This allows for loading classes
-    (especially subclassing MysqlTableManager::Task) at runtime. Files to
-    load must be present in some directory in Ruby's load path.
+    (especially subclassing MysqlTableManager::Task) at runtime.
 
   --unapply, -U
     Unapply the task instead of applying it. Not all tasks may support
@@ -140,7 +139,8 @@ getopt.each do |opt, arg|
     when "--task"
       @options.task = arg
     when "--require"
-      require arg
+      req_path = File.expand_path(arg, Dir.pwd)
+      require_relative req_path
     when "--unapply"
       @options.direction = :backward
   end
