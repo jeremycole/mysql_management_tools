@@ -127,6 +127,21 @@ class MysqlConnectionManager
     end
   end
 
+  def list_keys(host, table)
+    key_list_query = 
+      "SELECT DISTINCT index_name FROM information_schema.statistics " +
+      "WHERE table_schema = DATABASE() AND table_name = #{table};"
+
+    if result = query(host, key_list_query)
+      keys = []
+      result.each_hash do |row|
+        keys << row['index_name']
+      end
+
+      keys
+    end
+  end
+
   def list_tables(host, pattern = //)
     log "#{host} -> Listing tables"
   
@@ -197,6 +212,19 @@ class MysqlConnectionManager
     modifying_query host, "RENAME TABLE `#{old_name}` TO `#{new_name}`"
   end
 
+  def swap_tables(host, table1, table2)
+    rename_query = "RENAME TABLE `#{table1}` TO `#{table1}_tmp`, " +
+      "`#{table2}` TO `#{table1}`, " +
+      "`#{table1}_tmp` TO `#{table2}`"
+
+    modifying_query host, rename_query
+  end
+
+  def create_empty_table_from(host, table, new_table)
+    modifying_query host, "CREATE TABLE #{new_table} LIKE #{table}"
+  end
+
+
   def drop_table(host, name)
     modifying_query host, "DROP TABLE IF EXISTS `#{name}`"
   end
@@ -217,6 +245,11 @@ class MysqlConnectionManager
     # This should perhaps check the table's storage engine and use that here
     # but since we only care about InnoDB for the moment, this will suffice.
     modifying_query host, "ALTER TABLE `#{name}` ENGINE=InnoDB"
+  end
+
+  def nonblocking_compact_table(host, name)
+    # This will only work with Twitter MySQL, version 5.5.28.t8 and higher.
+    modifying_query host, "ALTER TABLE `#{name}` NO_WAIT, LOCK=EXCLUSIVE, ENGINE=InnoDB"
   end
 
   def hosts

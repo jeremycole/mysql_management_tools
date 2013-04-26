@@ -1,0 +1,3 @@
+lib/mysql_table_manager/task/tw_*
+*.gem
+.DS_Store

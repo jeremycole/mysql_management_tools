@@ -7,17 +7,16 @@ Gem::Specification.new do |s|
   s.authors     = [ 'Jeremy Cole', 'Will Gunty' ]
   s.email       = ['jeremycole@twitter.com', 'wg@twitter.com']
   s.homepage    = 'https://github.com/jeremycole/mysql_management_tools'
+
   s.files = [
     'lib/mysql_management/basic_interaction.rb',
     'lib/mysql_management/mysql_connection_manager.rb',
     'lib/mysql_table_manager/abstract_task.rb',
     'lib/mysql_table_manager/table_manager.rb',
-    'lib/mysql_table_manager/task/compact.rb',
-    'lib/mysql_table_manager/task/exact_measure.rb',
-    'lib/mysql_table_manager/task/measure.rb',
-    'lib/mysql_table_manager/task/truncate.rb',
     'lib/mysql_table_manager.rb',
   ]
+  s.files += Dir.glob("lib/mysql_table_manager/task/*.rb")
+
   s.executables = [
     'mysql_table_manager',
   ]
