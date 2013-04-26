@@ -8,17 +8,15 @@ Gem::Specification.new do |s|
   s.email       = ['jeremycole@twitter.com', 'wg@twitter.com']
   s.homepage    = 'https://github.com/jeremycole/mysql_management_tools'
 
-  files = [
+  s.files = [
     'lib/mysql_management/basic_interaction.rb',
     'lib/mysql_management/mysql_connection_manager.rb',
     'lib/mysql_table_manager/abstract_task.rb',
     'lib/mysql_table_manager/table_manager.rb',
     'lib/mysql_table_manager.rb',
   ]
-  tasks = Dir.glob("lib/mysql_table_manager/task/*.rb")
-  files.concat(tasks)
+  s.files += Dir.glob("lib/mysql_table_manager/task/*.rb")
 
-  s.files = files
   s.executables = [
     'mysql_table_manager',
   ]

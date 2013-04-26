@@ -129,8 +129,8 @@ class MysqlConnectionManager
 
   def list_keys(host, table)
     key_list_query = 
-      "SELECT DISTINCT index_name FROM INFORMATION_SCHEMA.STATISTICS " +
-      "WHERE table_schema = database() and TABLE_NAME = #{table};"
+      "SELECT DISTINCT index_name FROM information_schema.statistics " +
+      "WHERE table_schema = DATABASE() AND table_name = #{table};"
 
     if result = query(host, key_list_query)
       keys = []
@@ -213,8 +213,17 @@ class MysqlConnectionManager
   end
 
   def swap_tables(host, table1, table2)
-    modifying_query host, "RENAME TABLE `#{table1}` TO `#{table1}_tmp`, `#{table2}` TO `#{table1}`, `#{table1}_tmp` TO `#{table2}`"
+    rename_query = "RENAME TABLE `#{table1}` TO `#{table1}_tmp`, " +
+      "`#{table2}` TO `#{table1}`, " +
+      "`#{table1}_tmp` TO `#{table2}`"
+
+    modifying_query host, rename_query
   end
+
+  def create_empty_table_from(host, table, new_table)
+    modifying_query host, "CREATE TABLE #{new_table} LIKE #{table}"
+  end
+
 
   def drop_table(host, name)
     modifying_query host, "DROP TABLE IF EXISTS `#{name}`"
@@ -238,8 +247,8 @@ class MysqlConnectionManager
     modifying_query host, "ALTER TABLE `#{name}` ENGINE=InnoDB"
   end
 
-  def nonblock_compact_table(host, name)
-    # This will only work with Twitter's build of MySQL
+  def nonblocking_compact_table(host, name)
+    # This will only work with Twitter MySQL, version 5.5.28.t8 and higher.
     modifying_query host, "ALTER TABLE `#{name}` NO_WAIT, LOCK=EXCLUSIVE, ENGINE=InnoDB"
   end
 
