@@ -140,7 +140,7 @@ getopt.each do |opt, arg|
       @options.task = arg
     when "--require"
       req_path = File.expand_path(arg, Dir.pwd)
-      require_relative req_path
+      require req_path
     when "--unapply"
       @options.direction = :backward
   end
