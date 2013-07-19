@@ -143,9 +143,10 @@ class MysqlConnectionManager
   end
 
   def list_partitions(host, table)
+    log "#{host} -> Listing partitions for table #{table}"
     key_list_query =
-      "SELECT DISTINCT table_name from information_schema.partitions " +
-      "WHERE PARTITION_NAME IS NOT NULL AND table_name = '#{table}';"
+      "SELECT DISTINCT table_name FROM information_schema.partitions " +
+      "WHERE partition_name IS NOT NULL AND table_name = '#{table}';"
 
     if result = query(host, key_list_query)
       keys = []
