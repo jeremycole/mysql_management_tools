@@ -1,3 +1,4 @@
 lib/mysql_table_manager/task/tw_*
 *.gem
+.ruby*
 .DS_Store
