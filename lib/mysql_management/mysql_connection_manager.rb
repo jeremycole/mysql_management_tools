@@ -142,6 +142,22 @@ class MysqlConnectionManager
     end
   end
 
+  def list_partitions(host, table)
+    log "#{host} -> Listing partitions for table #{table}"
+    key_list_query =
+      "SELECT DISTINCT table_name FROM information_schema.partitions " +
+      "WHERE partition_name IS NOT NULL AND table_name = '#{table}';"
+
+    if result = query(host, key_list_query)
+      keys = []
+      result.each_hash do |row|
+        keys << row['table_name']
+      end
+
+      keys
+    end
+  end
+
   def list_tables(host, pattern = //)
     log "#{host} -> Listing tables"
   
